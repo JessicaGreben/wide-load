@@ -2,8 +2,6 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"time"
 
 	pkgT "github.com/jessicagreben/wide-load/pkg/tester"
 )
@@ -18,20 +16,15 @@ func (t *testPlan) Execute(config pkgT.Config) {
 }
 
 func (t *testPlan) SetupOnce() {
-	fmt.Println("http pre test testplan executing")
+	fmt.Println("gw pre test testplan executing")
 }
 
 func (t *testPlan) SetupEveryTest() {
-	fmt.Println("http pre test testplan executing")
+	fmt.Println("gw pre test testplan executing")
 }
 
-func (t *testPlan) Test() int64 {
-	start := time.Now().UTC()
-	_, err := http.Get(t.test.Config.URL)
-	if err != nil {
-		fmt.Println(err)
-	}
-	return time.Since(start).Milliseconds()
+func (t *testPlan) Test() {
+	fmt.Println("gw testplan executing")
 }
 
 func (t *testPlan) Stop() {

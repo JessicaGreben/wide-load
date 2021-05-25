@@ -10,35 +10,37 @@ import (
 
 type TestPlan interface {
 	Execute(config Config)
-	PreTest()
-	Test()
+	SetupOnce()
+	SetupEveryTest()
+	Test() int64
 	Stop()
 }
 
 // Config is the settings to run a load test.
 type Config struct {
+	URL         string
 	Concurrency int
 	QPS         int
 }
 
 // Test is an instance of a test.
 type Test struct {
-	Config        Config
-	Start         time.Time
-	Results       Results
-	InitOnce      sync.Once
-	StopCh        chan struct{}
-	modulePreTest func()
-	moduleTest    func()
+	TestPlan
+	Config   Config
+	Start    time.Time
+	Results  Results
+	InitOnce sync.Once
+	StopCh   chan struct{}
 }
 
-func NewTest(config Config, moduletest, pretest func()) *Test {
+func NewTest(config Config, tp TestPlan) *Test {
 	t := Test{
-		Config:        config,
-		Start:         time.Now().UTC(),
-		Results:       Results{},
-		modulePreTest: pretest,
-		moduleTest:    moduletest,
+		TestPlan: tp,
+		Config:   config,
+		Start:    time.Now().UTC(),
+		Results: Results{
+			Latencies: []int64{},
+		},
 	}
 	t.InitOnce.Do(func() {
 		t.StopCh = make(chan struct{}, t.Config.Concurrency)
@@ -46,10 +48,10 @@ func NewTest(config Config, moduletest, pretest func()) *Test {
 	return &t
 }
 
+// sleepRandom sleeps for a random amount of time between [100,1000) milliseconds.
 func sleepRandom(concurrency int) {
-	rand.Seed(time.Now().UnixNano())
 	r := rand.Intn(((concurrency + 1) * 100) % 1000)
-	fmt.Println("sleeping for:", time.Duration(r)*time.Millisecond)
+	fmt.Println("sleeping for (ms):", time.Duration(r)*time.Millisecond)
 	time.Sleep(time.Duration(r) * time.Millisecond)
 }
 
@@ -58,8 +60,8 @@ func (t *Test) Run() {
 	wg.Add(t.Config.Concurrency)
 
 	for workerID := 0; workerID < t.Config.Concurrency; workerID++ {
-		// sleep for a random amount so all workers don't start at the exact same time.
-		sleepRandom(t.Config.Concurrency)
+		// sleep for a random amount of time so that workers don't start at the same time.
+		sleepRandom(workerID)
 		go func(id int) {
 			t.runWorker(id)
 			wg.Done()
@@ -69,11 +71,18 @@ func (t *Test) Run() {
 }
 
 func (t *Test) runWorker(id int) {
-	var throttle <-chan time.Time
+	var ticker *time.Ticker
 	if t.Config.QPS > 0 {
 		x := time.Duration(1e6/(t.Config.QPS)) * time.Microsecond
-		throttle = time.Tick(x)
+		if x < 0 {
+			// ticket panics if less than 0
+		}
+		ticker = time.NewTicker(x)
+		defer ticker.Stop()
+	} else {
+		// run test once if QPS is less than 1
 	}
+
 	defer func() {
 		err := t.Cleanup()
 		if err != nil {
@@ -81,17 +90,14 @@ func (t *Test) runWorker(id int) {
 		}
 	}()
 
+	t.SetupOnce()
 	for {
-		// Check if application is stopped. Do not send into a closed channel.
 		select {
 		case <-t.StopCh:
 			return
-		default:
-			if t.Config.QPS > 0 {
-				<-throttle
-			}
-			t.modulePreTest() // runs any needed setup for test
-			t.moduleTest()    // runs the actual test of the module
+		case <-ticker.C:
+			t.SetupEveryTest()
+			t.Results.Latencies = append(t.Results.Latencies, t.Test())
 		}
 	}
 }
@@ -111,4 +117,6 @@ func (t *Test) Cleanup() error {
 }
 
 // Results are the results of a test.
-type Results struct{}
+type Results struct {
+	Latencies []int64
+}

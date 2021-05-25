@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/signal"
 	"plugin"
@@ -12,18 +13,19 @@ import (
 )
 
 const (
-	defaultTest = 0
-	uplink      = 1
-	gatewayMT   = 2
+	http      = 0
+	uplink    = 1
+	gatewayMT = 2
 )
 
 var supportedModules = map[string]int{
-	"default":   defaultTest,
+	"http":      http,
 	"uplink":    uplink,
 	"gatewayMT": gatewayMT,
 }
 
 var (
+	url         = flag.String("url", "", "")
 	concurrency = flag.Int("concurrency", 1, "")
 	qps         = flag.Int("qps", 1, "")
 	duration    = flag.Duration("duration", time.Minute, "")
@@ -32,20 +34,25 @@ var (
 var usage = `Usage: wide-load [options...] <testModuleName>
 
 Module Name options:
-  - default
+  - http
   - uplink
   - gatewayMT
 
 Options:
-  -concurrency  Number of workers (goroutines) to run concurrently. Default is 1.
-  -qps          Rate limit in queries per second (QPS) per worker. Default is 1 qps per worker.
-  -duration     Duration of test. When duration is reached, the test stops and exits. Default is 1 min.
-		        Examples: -duration 10s -duration 3m.
+  -url          URL to execute load test against for http/https.
+  -concurrency  Number of workers (goroutines) to run concurrently. Will never be less than 1. Default is 1.
+  -qps          Rate limit in queries per second (QPS) per worker (goroutine). If qps <= 0, then the test only runs once. Default is 1 qps per worker.
+  -duration     Duration of test. When duration is reached, the test stops and exits. Duration <= 0 will run forever. Default is 1 min.
+		        Examples: -duration 10s -duration 3m -duration -1.
 
 Example:
-$ wide-load uplink
+$ wide-load http -url=https://testme.com
 
 `
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
 
 func main() {
 	flag.Usage = func() {
@@ -65,9 +72,8 @@ func main() {
 
 	var mod string
 	switch testToExecute {
-	case defaultTest:
-		fmt.Println("default not implemented")
-		os.Exit(0)
+	case http:
+		mod = "./pkg/default/plan.so"
 	case gatewayMT:
 		mod = "./pkg/gatewaymt/plan.so"
 	case uplink:
@@ -98,16 +104,20 @@ func main() {
 		<-c
 		tp.Stop()
 	}()
-	dur := *duration
-	if dur > 0 {
+	testDuration := *duration
+	if testDuration > 0 {
 		go func() {
-			time.Sleep(dur)
-			fmt.Println("duration passed, stopping...")
+			time.Sleep(testDuration)
+			fmt.Println("test duration passed, stopping...")
 			tp.Stop()
 		}()
 	}
 
+	if *concurrency < 1 {
+		*concurrency = 1
+	}
 	tp.Execute(pkgT.Config{
+		URL:         *url,
 		Concurrency: *concurrency,
 		QPS:         *qps,
 	})
