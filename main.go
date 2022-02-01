@@ -3,27 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"os/signal"
+	"path"
 	"plugin"
 	"time"
 
-	pkgT "github.com/jessicagreben/wide-load/pkg/tester"
+	pkgT "github.com/jessicagreben/wide-load/pkg/loader"
 )
 
 const (
-	http      = 0
-	uplink    = 1
-	gatewayMT = 2
-	translate = 3
+	http = 0
 )
 
 var supportedModules = map[string]int{
-	"http":      http,
-	"uplink":    uplink,
-	"gatewayMT": gatewayMT,
-	"translate": translate,
+	"http": http,
 }
 
 var (
@@ -37,9 +33,6 @@ var usage = `Usage: wide-load [options...] <testModuleName>
 
 Supported plugin module names:
   - http
-  - uplink
-  - gatewayMT
-  - translate
 
 Options:
   -url          URL to execute load test against for http/https.
@@ -49,7 +42,6 @@ Options:
 
 Example usage:
 $ wide-load http -url=https://testme.com
-
 `
 
 func init() {
@@ -67,62 +59,47 @@ func main() {
 		os.Exit(0)
 	}
 	moduleName := flag.Args()[0]
-	testToExecute, ok := supportedModules[moduleName]
-	if !ok {
-		fmt.Println("test module type not supported:", moduleName)
-		os.Exit(1)
+	if _, ok := supportedModules[moduleName]; !ok {
+		log.Fatalln("module not supported:", moduleName)
 	}
 
-	var modulePkg string
-	switch testToExecute {
-	case http:
-		modulePkg = "./pkg/default/plan.so"
-	case gatewayMT:
-		modulePkg = "./pkg/gatewaymt/plan.so"
-	case uplink:
-		modulePkg = "./pkg/uplink/plan.so"
-	case translate:
-		modulePkg = "./pkg/translate/plan.so"
-	default:
-		fmt.Println("test type not supported:", testToExecute)
-		os.Exit(1)
+	base, err := os.Getwd()
+	if err != nil {
+		log.Println(err)
 	}
-
+	modulePkg := path.Join(base, "pkg", moduleName, "plan.so")
 	plug, err := plugin.Open(modulePkg)
 	if err != nil {
-		fmt.Println("plugin.Open err:", err)
-		os.Exit(1)
+		log.Fatalln("plugin.Open err:", err)
 	}
-	testPlan, err := plug.Lookup("TestPlan")
+	tp, err := plug.Lookup("TestPlan")
 	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+		log.Fatalln("lookup", err)
 	}
-	tp, ok := testPlan.(pkgT.TestPlan)
+	testplan, ok := tp.(pkgT.TestPlan)
 	if !ok {
-		fmt.Println("unexpected type from module")
-		os.Exit(1)
+		log.Fatalln("testplan needs to implement TestPlan interface")
 	}
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		tp.Stop()
+		testplan.Stop()
 	}()
 	testDuration := *duration
 	if testDuration > 0 {
 		go func() {
 			time.Sleep(testDuration)
-			fmt.Println("test duration passed, stopping...")
-			tp.Stop()
+			log.Println("test duration passed, stopping...")
+			testplan.Stop()
 		}()
 	}
 
 	if *concurrency < 1 {
 		*concurrency = 1
 	}
-	fmt.Println("Executing load test:", "-module", moduleName, "-duration", duration, "-qps", *qps, "-concurrency", *concurrency)
-	tp.Execute(pkgT.Config{
+	log.Println("Executing load test:", "-module", moduleName, "-duration", duration, "-qps", *qps, "-concurrency", *concurrency)
+	testplan.Execute(pkgT.Config{
 		URL:         *url,
 		Concurrency: *concurrency,
 		QPS:         *qps,

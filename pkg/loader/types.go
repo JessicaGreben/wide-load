@@ -1,4 +1,4 @@
-package tester
+package loader
 
 type TestPlan interface {
 	Execute(config Config)
@@ -12,7 +12,7 @@ type TestScenario interface {
 	Cleanup()
 }
 
-// Config is the settings to run a load test.
+// Config contains the settings to run a load test.
 type Config struct {
 	URL         string
 	Concurrency int
