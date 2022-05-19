@@ -33,7 +33,6 @@ func load(url string, qps, concurrency int, duration time.Duration) {
 func firstStage(url string, qps int, duration time.Duration) <-chan string {
 	outbound := make(chan string)
 
-	// send down the channel for duration at rate of qps
 	go func() {
 		if qps <= 0 {
 			qps = minQPS
@@ -48,9 +47,7 @@ func firstStage(url string, qps int, duration time.Duration) <-chan string {
 			done <- true
 		}()
 
-		waitFor := time.Duration(1e6/qps) * time.Microsecond
-		fmt.Println("wait for:", waitFor)
-		ticker := time.NewTicker(waitFor)
+		ticker := time.NewTicker(time.Duration(1e6/qps) * time.Microsecond)
 		defer ticker.Stop()
 
 		for {
@@ -59,7 +56,6 @@ func firstStage(url string, qps int, duration time.Duration) <-chan string {
 				close(outbound)
 				return
 			case <-ticker.C:
-				fmt.Println("tick")
 				outbound <- url
 			}
 		}
@@ -68,6 +64,9 @@ func firstStage(url string, qps int, duration time.Duration) <-chan string {
 	return outbound
 }
 
+// secondStage is the second stage in the pipeline.
+// This stage reads from a url from the input and makes an http request
+// and returns the latency of that request.
 func secondStage(in <-chan string) <-chan int {
 	outbound := make(chan int)
 
@@ -84,6 +83,8 @@ func secondStage(in <-chan string) <-chan int {
 	return outbound
 }
 
+// finalStage is the final stage in the pipeline.
+// This stage processes the results by printing them.
 func finalStage(in <-chan int) {
 	for r := range in {
 		fmt.Println("latency (ms):", r)
