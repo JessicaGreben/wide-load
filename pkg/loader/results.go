@@ -11,7 +11,7 @@ type Results struct {
 	SuccessTotal int
 	FailureTotal int
 	TotalLatency int
-	AvgLatency   int
+	AvgLatency   float64
 	Fastest      float64
 	Slowest      float64
 	Average      float64
@@ -35,9 +35,9 @@ func (r *Results) Process() {
 }
 
 func (r *Results) Report() {
-	log.Println("total tests 2:", r.TotalTests)
+	log.Println("total tests executed:", r.TotalTests)
 	if r.TotalTests != 0 {
-		r.AvgLatency = r.TotalLatency / r.TotalTests
+		r.AvgLatency = float64(r.TotalLatency) / float64(r.TotalTests)
 	}
 	log.Println("avg latency", r.AvgLatency)
 	log.Println("total results", r.TotalTests)

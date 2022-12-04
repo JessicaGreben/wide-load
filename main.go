@@ -11,37 +11,37 @@ import (
 	"plugin"
 	"time"
 
-	pkgT "github.com/jessicagreben/wide-load/pkg/loader"
+	"github.com/jessicagreben/wide-load/pkg/loader"
 )
+
+type pluginType int
 
 const (
-	http = 0
+	http pluginType = 0
 )
 
-var supportedModules = map[string]int{
+var supportedPlugins = map[string]pluginType{
 	"http": http,
 }
 
 var (
-	url         = flag.String("url", "", "")
 	concurrency = flag.Int("concurrency", 1, "")
 	qps         = flag.Int("qps", 1, "")
-	duration    = flag.Duration("duration", time.Minute, "")
+	duration    = flag.Duration("duration", 10*time.Second, "")
 )
 
-var usage = `Usage: wide-load [options...] <testModuleName>
+var usage = `Usage: wide-load [options...] <plugin name>
 
-Supported plugin module names:
+Supported plugin names:
   - http
 
 Options:
-  -url          URL to execute load test against for http/https.
   -concurrency  Number of workers (goroutines) to run concurrently. Will never be less than 1. Default is 1.
   -qps          Rate limit in queries per second (QPS) per worker (goroutine). If qps <= 0, then the test runs once. Default is 1 qps per worker.
   -duration     Duration of test. When duration is reached, the test stops and exits. Duration <= 0 will run forever. Default is 1 min. Examples: -duration 10s -duration 3m -duration -1.
 
 Example usage:
-$ wide-load http -url=https://testme.com
+$ wide-load http
 `
 
 func init() {
@@ -58,50 +58,51 @@ func main() {
 		fmt.Print(usage)
 		os.Exit(0)
 	}
-	moduleName := flag.Args()[0]
-	if _, ok := supportedModules[moduleName]; !ok {
-		log.Fatalln("module not supported:", moduleName)
+	pluginName := flag.Args()[0]
+	if _, ok := supportedPlugins[pluginName]; !ok {
+		log.Fatalln("module not supported:", pluginName)
 	}
 
 	base, err := os.Getwd()
 	if err != nil {
 		log.Println(err)
 	}
-	modulePkg := path.Join(base, "pkg", moduleName, "plan.so")
-	plug, err := plugin.Open(modulePkg)
+	pluginPath := path.Join(base, "plugins", pluginName, "suite.so")
+	plug, err := plugin.Open(pluginPath)
 	if err != nil {
 		log.Fatalln("plugin.Open err:", err)
 	}
-	tp, err := plug.Lookup("TestPlan")
+	ts, err := plug.Lookup("TestSuite")
 	if err != nil {
 		log.Fatalln("lookup", err)
 	}
-	testplan, ok := tp.(pkgT.TestPlan)
+	testsuite, ok := ts.(loader.TestSuite)
 	if !ok {
-		log.Fatalln("testplan needs to implement TestPlan interface")
+		log.Fatalln("testsuite needs to implement TestSuite interface")
 	}
+
+	if *concurrency < 1 {
+		*concurrency = 1
+	}
+	cfg := loader.Config{
+		Concurrency: *concurrency,
+		QPS:         *qps,
+	}
+	loadTests := loader.NewTestFramework(cfg, testsuite)
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		<-c
-		testplan.Stop()
+		loadTests.Stop()
 	}()
 	testDuration := *duration
 	if testDuration > 0 {
 		go func() {
 			time.Sleep(testDuration)
 			log.Println("test duration passed, stopping...")
-			testplan.Stop()
+			loadTests.Stop()
 		}()
 	}
-
-	if *concurrency < 1 {
-		*concurrency = 1
-	}
-	log.Println("Executing load test:", "-module", moduleName, "-duration", duration, "-qps", *qps, "-concurrency", *concurrency)
-	testplan.Execute(pkgT.Config{
-		URL:         *url,
-		Concurrency: *concurrency,
-		QPS:         *qps,
-	})
+	log.Println("Executing load tests for plugin:", pluginName, "-duration", duration, "-qps", *qps, "-concurrency", *concurrency)
+	loadTests.Exec()
 }

@@ -1,20 +1,20 @@
 package loader
 
-type TestPlan interface {
-	Execute(config Config)
+type TestSuite interface {
+	AddTests() int
+	Tests() []Testcase
+	Exec()
 	Stop()
 }
-
-type TestScenario interface {
+type Testcase interface {
 	SetupOnce()
 	Setup()
-	Test() (int64, error)
+	Test() error
 	Cleanup()
 }
 
 // Config contains the settings to run a load test.
 type Config struct {
-	URL         string
 	Concurrency int
 	QPS         int
 }
