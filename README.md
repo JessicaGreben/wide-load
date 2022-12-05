@@ -28,6 +28,17 @@ $ ./wide-load http
 
 ```
 
+## Testing
+
+#### System test
+
+Executing the system test will executes a single testcase that prints for its test.
+```
+$ go build -o plugins/test/suite.so -buildmode=plugin plugins/test/suite.go
+$ go build
+$ ./wide-load test
+```
+
 ## How to create a new load test plugin
 
 To load test a new software system a plugin must be added for that system. To do so, follow these steps: 

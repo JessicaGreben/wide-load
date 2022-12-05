@@ -18,10 +18,12 @@ type pluginType int
 
 const (
 	http pluginType = 0
+	test pluginType = 99
 )
 
 var supportedPlugins = map[string]pluginType{
 	"http": http,
+	"test": test,
 }
 
 var (

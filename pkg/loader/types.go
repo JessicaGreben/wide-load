@@ -6,6 +6,7 @@ type TestSuite interface {
 	Exec()
 	Stop()
 }
+
 type Testcase interface {
 	SetupOnce()
 	Setup()

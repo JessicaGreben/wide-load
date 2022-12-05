@@ -14,20 +14,20 @@ func newTestCase() *testCase {
 }
 
 func (t *testCase) SetupOnce() {
-	log.Println("http setup once")
+	log.Println("mock test setup once")
 }
 
 func (t *testCase) Setup() {
-	log.Println("http setup")
+	log.Println("mock test setup")
 }
 
 func (t *testCase) Test() error {
-	log.Println("http test")
+	log.Println("mock test test")
 	return nil
 }
 
 func (t *testCase) Cleanup() {
-	log.Println("http cleanup")
+	log.Println("mock test cleanup")
 }
 
 type testsuite struct {
