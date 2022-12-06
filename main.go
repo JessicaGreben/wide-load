@@ -17,12 +17,12 @@ import (
 type pluginType int
 
 const (
-	http pluginType = 0
+	s3   pluginType = 0
 	test pluginType = 99
 )
 
 var supportedPlugins = map[string]pluginType{
-	"http": http,
+	"s3":   s3,
 	"test": test,
 }
 
@@ -35,7 +35,7 @@ var (
 var usage = `Usage: wide-load [options...] <plugin name>
 
 Supported plugin names:
-  - http
+  - s3
 
 Options:
   -concurrency  Number of workers (goroutines) to run concurrently. Will never be less than 1. Default is 1.
@@ -43,7 +43,7 @@ Options:
   -duration     Duration of test. When duration is reached, the test stops and exits. Duration <= 0 will run forever. Default is 1 min. Examples: -duration 10s -duration 3m -duration -1.
 
 Example usage:
-$ wide-load http
+$ wide-load s3
 `
 
 func init() {
@@ -106,5 +106,7 @@ func main() {
 		}()
 	}
 	log.Println("Executing load tests for plugin:", pluginName, "-duration", duration, "-qps", *qps, "-concurrency", *concurrency)
-	loadTests.Exec()
+	if err := loadTests.Exec(); err != nil {
+		log.Fatal("loadTest exec", err)
+	}
 }

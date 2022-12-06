@@ -37,7 +37,10 @@ func NewTestFramework(config Config, suite TestSuite) *testFramework {
 	return &t
 }
 
-func (t *testFramework) Exec() {
+func (t *testFramework) Exec() error {
+	if err := t.suite.Init(); err != nil {
+		return err
+	}
 	for testID, test := range t.suite.Tests() {
 		go func() {
 			t.results[testID].Process()
@@ -60,6 +63,7 @@ func (t *testFramework) Exec() {
 		// Process results
 		t.results[testID].Report()
 	}
+	return nil
 }
 
 func (t *testFramework) runWorker(workerId int, testID int, test Testcase) {

@@ -34,7 +34,7 @@ $ ./wide-load http
 
 Executing the system test will executes a single testcase that prints for its test.
 ```
-$ go build -o plugins/test/suite.so -buildmode=plugin plugins/test/suite.go
+$ go build -o plugins/test/suite.so -buildmode=plugin plugins/test/*.go
 $ go build
 $ ./wide-load test
 ```

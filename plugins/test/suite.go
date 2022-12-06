@@ -34,18 +34,16 @@ type testsuite struct {
 	testcases []loader.Testcase
 }
 
+func (suite *testsuite) Init() error {
+	return nil
+}
+
 func (suite *testsuite) AddTests() int {
 	suite.testcases = append(suite.testcases, newTestCase())
 	return len(suite.testcases)
 }
 func (suite *testsuite) Tests() []loader.Testcase {
 	return suite.testcases
-}
-func (suite *testsuite) Exec() {
-
-}
-func (suite *testsuite) Stop() {
-
 }
 
 var (

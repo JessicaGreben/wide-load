@@ -1,10 +1,9 @@
 package loader
 
 type TestSuite interface {
+	Init() error
 	AddTests() int
 	Tests() []Testcase
-	Exec()
-	Stop()
 }
 
 type Testcase interface {
